@@ -19,12 +19,13 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "i2c.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "dht11.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -88,16 +89,25 @@ int main(void)
   MX_GPIO_Init();
   MX_I2C1_Init();
   MX_USART1_UART_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-
+	uint8_t UART_BUF[4] = {0x00};
+	DHT11_Data_TypeDef DHT11_Data;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
-  {
+  {	
     /* USER CODE END WHILE */
-
+		if(DHT11_ReadData(&DHT11_Data))
+		{	
+			UART_BUF[0] = DHT11_Data.humi_int;
+			UART_BUF[1] = DHT11_Data.humi_dec;
+			UART_BUF[2] = DHT11_Data.temp_int;
+			UART_BUF[3] = DHT11_Data.temp_dec;
+			HAL_UART_Transmit(&huart1, UART_BUF, 4, 0xffff);
+		}
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */

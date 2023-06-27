@@ -1,100 +1,120 @@
-#include "stm32f4xx_hal.h"
+#include "dht11.h"
 
-#define DHT11_GPIO_PORT     GPIOA
-#define DHT11_GPIO_PIN      GPIO_PIN_0
-
-void DHT11_Init(void)
+/**
+ * @brief 微妙级延时
+ *
+ */
+ void bsp_delay_us(uint16_t us)
 {
-    GPIO_InitTypeDef GPIO_InitStruct;
-
-    // Enable GPIO clock
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-
-    // Configure GPIO pin as output
-    GPIO_InitStruct.Pin = DHT11_GPIO_PIN;
-    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(DHT11_GPIO_PORT, &GPIO_InitStruct);
-
-    // Set the pin to high
-    HAL_GPIO_WritePin(DHT11_GPIO_PORT, DHT11_GPIO_PIN, GPIO_PIN_SET);
+	__HAL_TIM_SET_COUNTER(&htim2, 0);
+	
+	HAL_TIM_Base_Start(&htim2);
+	
+	while(__HAL_TIM_GET_COUNTER(&htim2) != us);
+	
+	HAL_TIM_Base_Stop(&htim2);
 }
 
-void DHT11_Delay(uint32_t us)
+/**
+ * @brief DHT11 输出模式
+ *
+ */
+void DHT11_Mode_OUT_PP(void)
 {
-    // Implement a delay function here (microseconds)
-    // You can use HAL_Delay() if you want to delay in milliseconds
+	GPIO_InitTypeDef GPIO_InitStruct;
+	
+	GPIO_InitStruct.Pin = DHT11_PIN;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+	
+	HAL_GPIO_Init(DHT11_PORT, &GPIO_InitStruct);
 }
 
+/**
+ * @brief DHT11 输入模式
+ *
+ */
+void DHT11_Mode_IN_NP(void)
+{
+	GPIO_InitTypeDef GPIO_InitStruct;
+	
+	GPIO_InitStruct.Pin = DHT11_PIN;
+	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	
+	HAL_GPIO_Init(DHT11_PORT, &GPIO_InitStruct);
+}
+
+/**
+ * @brief DHT11 读取字节
+ *
+ */
 uint8_t DHT11_ReadByte(void)
 {
-    uint8_t data = 0;
-
-    // Read 8 bits
-    for (int i = 0; i < 8; i++)
-    {
-        // Wait for the pin to go low
-        while (!HAL_GPIO_ReadPin(DHT11_GPIO_PORT, DHT11_GPIO_PIN));
-
-        // Delay for ~50us
-        DHT11_Delay(50);
-
-        // Check if the pin is high
-        if (HAL_GPIO_ReadPin(DHT11_GPIO_PORT, DHT11_GPIO_PIN))
-        {
-            // Set the corresponding bit in the data variable
-            data |= (1 << (7 - i));
-        }
-
-        // Wait for the pin to go high
-        while (HAL_GPIO_ReadPin(DHT11_GPIO_PORT, DHT11_GPIO_PIN));
-    }
-
-    return data;
+	uint8_t i, temp = 0;
+	
+	for(i = 0; i < 8; i++)
+	{
+		while(DHT11_IN == 0); //等待低电平结束
+		
+		bsp_delay_us(40); //延时40微妙
+		
+		if(DHT11_IN == 1)
+		{
+			while(DHT11_IN == 1); //等待高电平结束
+			
+			temp |= (uint8_t)(0x01 << (7 - i));
+		}
+		else
+		{
+			temp &= (uint8_t)~(0x01 << (7 - i));
+		}
+	}
+	return temp;
 }
 
-void DHT11_ReadData(uint8_t* humidity, uint8_t* temperature)
+/**
+ *
+ *
+ */
+uint8_t DHT11_ReadData(DHT11_Data_TypeDef *DHT11_Data)
 {
-    uint8_t data[5];
-    uint8_t checksum;
-
-    // Initialize the data array
-    for (int i = 0; i < 5; i++)
-    {
-        data[i] = 0;
-    }
-
-    // Set the pin to low
-    HAL_GPIO_WritePin(DHT11_GPIO_PORT, DHT11_GPIO_PIN, GPIO_PIN_RESET);
-
-    // Delay for ~18ms
-    DHT11_Delay(18000);
-
-    // Set the pin to high
-    HAL_GPIO_WritePin(DHT11_GPIO_PORT, DHT11_GPIO_PIN, GPIO_PIN_SET);
-
-    // Wait for the pin to go low
-    while (HAL_GPIO_ReadPin(DHT11_GPIO_PORT, DHT11_GPIO_PIN));
-
-    // Wait for the pin to go high
-    while (!HAL_GPIO_ReadPin(DHT11_GPIO_PORT, DHT11_GPIO_PIN));
-
-    // Read 40 bits (5 bytes)
-    for (int i = 0; i < 5; i++)
-    {
-        data[i] = DHT11_ReadByte();
-    }
-
-    // Calculate checksum
-    checksum = data[0] + data[1] + data[2] + data[3];
-
-    // Check if the checksum is correct
-    if (checksum == data[4])
-    {
-        *humidity = data[0];
-        *temperature = data[2];
-    }
+	DHT11_Mode_OUT_PP();  //主机输出。主机拉低
+	DHT11_OUT_0;
+	HAL_Delay(18); //延时18ms
+	
+	DHT11_OUT_1; //主机拉高，延时30us
+	bsp_delay_us(30);
+	
+	DHT11_Mode_IN_NP(); //主机输入，获取DHT11数据
+	
+	if(DHT11_IN == 0) //收到从机应答
+	{
+		while(DHT11_IN == 0); //等到从几应答的低电平结束
+		
+		while(DHT11_IN == 1); //等待从几应答的高电平结束
+		
+		/*开始接受数据*/
+		DHT11_Data->humi_int = DHT11_ReadByte();
+		DHT11_Data->humi_dec = DHT11_ReadByte();	
+		DHT11_Data->temp_int = DHT11_ReadByte();		
+		DHT11_Data->temp_dec = DHT11_ReadByte();
+		DHT11_Data->check_sum = DHT11_ReadByte();
+		
+		DHT11_Mode_OUT_PP(); //读取结束，主机拉高
+		DHT11_OUT_1;
+		
+		//数据校验
+		if(DHT11_Data->check_sum == DHT11_Data->humi_int + DHT11_Data->humi_dec + DHT11_Data->temp_int + DHT11_Data->temp_dec)
+		{
+			return 0;
+		}
+		else
+		{
+			return 1;
+		}
+	}
+	
+	return 1;
 }
-
 
