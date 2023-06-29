@@ -1,5 +1,7 @@
 #include "delay.h"
 
+// use HSI
+
 void Delay_us(uint32_t us)
 {       
     HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000000);
