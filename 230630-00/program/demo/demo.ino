@@ -1,39 +1,37 @@
-#include <DHT11.h>
+#include <EtherCard.h>
 
-// Create an instance of the DHT11 class and set the digital I/O pin.
-DHT11 dht11(7);
+static byte mymac[] = { 0x1A,0x2B,0x3C,0x4D,0x5E,0x6F };
+static byte dstip[] = {192, 168, 81, 1};
+byte Ethernet::buffer[700];
+static uint32_t timer = 0;
 
-void setup()
-{
-    // Initialize serial communication at 115200 baud.
-    Serial.begin(9600);
+const int dstPort PROGMEM = 8080;
+
+const int srcPort PROGMEM = 4321;
+
+void setup () {
+  Serial.begin(9600);
+
+  // Change 'SS' to your Slave Select pin, if you arn't using the default pin
+  if (ether.begin(sizeof Ethernet::buffer, mymac, SS) == 0)
+    Serial.println( "Failed to access Ethernet controller");
+  if (!ether.dhcpSetup())
+    Serial.println("DHCP failed");
+
+  ether.printIp("IP:  ", ether.myip);
+  ether.printIp("GW:  ", ether.gwip);
+  ether.printIp("DNS: ", ether.dnsip);
+
 }
 
-void loop()
-{
-    // Read the humidity from the sensor.
-    float humidity = dht11.readHumidity();
+char textToSend[] = "test 123";
 
-    // Read the temperature from the sensor.
-    float temperature = dht11.readTemperature();
-
-    // If the temperature and humidity readings were successful, print them to the serial monitor.
-    if (temperature != -1 && humidity != -1)
-    {
-        Serial.print("Temperature: ");
-        Serial.print(temperature);
-        Serial.println(" C");
-
-        Serial.print("Humidity: ");
-        Serial.print(humidity);
-        Serial.println(" %");
-    }
-    else
-    {
-        // If the temperature or humidity reading failed, print an error message.
-        Serial.println("Error reading data");
-    }
-
-    // Wait for 2 seconds before the next reading.
-    delay(2000);
+void loop () {
+    if (millis() > timer) {
+      Serial.print("timer: ");
+      Serial.println(timer);
+      timer = millis() + 5000;
+     //static void sendUdp (char *data,uint8_t len,uint16_t sport, uint8_t *dip, uint16_t dport);
+     ether.sendUdp(textToSend, sizeof(textToSend), srcPort, dstip, dstPort );
+  }
 }
