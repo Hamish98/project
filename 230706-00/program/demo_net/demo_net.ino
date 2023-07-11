@@ -17,10 +17,10 @@
 #include <EtherCard.h>
 
 // OAUTH key from http://arduino-tweet.appspot.com/
-#define TOKEN   "Insert-your-token-here"
+#define TOKEN "Insert-your-token-here"
 
 // ethernet interface mac address, must be unique on the LAN
-byte mymac[] = { 0x74,0x69,0x69,0x2D,0x30,0x31 };
+byte mymac[] = { 0x74, 0x69, 0x69, 0x2D, 0x30, 0x31 };
 
 static char websiteIP[] = "192.168.81.1";
 
@@ -29,7 +29,7 @@ static byte session;
 byte Ethernet::buffer[700];
 Stash stash;
 
-static void sendToTwitter () {
+static void sendToTwitter() {
   Serial.println("Sending tweet...");
   byte sd = stash.create();
 
@@ -43,19 +43,22 @@ static void sendToTwitter () {
 
   // Compose the http POST request, taking the headers below and appending
   // previously created stash in the sd holder.
-  Stash::prepare(PSTR("POST http://$F/update HTTP/1.0" "\r\n"
-    "Host: $F" "\r\n"
-    "Content-Length: $D" "\r\n"
-    "\r\n"
-    "$H"),
-  websiteIP, websiteIP, stash_size, sd);
+  Stash::prepare(PSTR("POST http://$F/update HTTP/1.0"
+                      "\r\n"
+                      "Host: $F"
+                      "\r\n"
+                      "Content-Length: $D"
+                      "\r\n"
+                      "\r\n"
+                      "$H"),
+                 websiteIP, websiteIP, stash_size, sd);
 
   // send the packet - this also releases all stash buffers once done
   // Save the session ID so we can watch for it in the main loop.
   session = ether.tcpSend();
 }
 
-void setup () {
+void setup() {
   Serial.begin(9600);
   Serial.println("\n[Twitter Client]");
 
@@ -76,7 +79,7 @@ void setup () {
   sendToTwitter();
 }
 
-void loop () {
+void loop() {
   ether.packetLoop(ether.packetReceive());
 
   const char* reply = ether.tcpReply(session);
